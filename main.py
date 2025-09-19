@@ -209,8 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Auto clicker with configurable hotkeys")
     parser.add_argument(
         "--toggle",
-        default="ctrl+alt+p",
-        help="Hotkey used to start or stop auto-clicking (default: ctrl+alt+p)",
+        default="m",
+        help="Hotkey used to start or stop auto-clicking (default: m)",
     )
     parser.add_argument(
         "--exit",
