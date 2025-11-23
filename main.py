@@ -1,11 +1,8 @@
 """Autoclicker that can target custom hotkeys for Opera compatibility."""
-from __future__ import annotations
 
 import argparse
 import random
 import threading
-from dataclasses import dataclass
-from typing import Optional, Sequence, Set
 
 from pynput import keyboard, mouse
 
@@ -18,11 +15,11 @@ class HotkeyParseError(ValueError):
     """Raised when a hotkey string cannot be interpreted."""
 
 
-def _char_keycodes(character: str) -> Set[keyboard.KeyCode]:
+def _char_keycodes(character):
     """Return the possible `KeyCode` objects for a printable character."""
 
     if len(character) != 1:
-        raise HotkeyParseError(f"Expected a single character, got {character!r}")
+        raise HotkeyParseError("Expected a single character, got {0!r}".format(character))
 
     lower = keyboard.KeyCode.from_char(character.lower())
     upper = keyboard.KeyCode.from_char(character.upper())
@@ -31,7 +28,7 @@ def _char_keycodes(character: str) -> Set[keyboard.KeyCode]:
     return {lower, upper}
 
 
-def _alias_keys(name: str) -> Set[keyboard.Key | keyboard.KeyCode]:
+def _alias_keys(name):
     """Return the set of acceptable keys for an alias."""
 
     key_name = name.lower()
@@ -82,32 +79,32 @@ def _alias_keys(name: str) -> Set[keyboard.Key | keyboard.KeyCode]:
         number = int(key_name[1:])
         if 1 <= number <= 24:
             try:
-                key = getattr(keyboard.Key, f"f{number}")
-            except AttributeError as exc:
-                raise HotkeyParseError(f"Unknown key in hotkey: {name!r}") from exc
+                key = getattr(keyboard.Key, "f{0}".format(number))
+            except AttributeError:
+                raise HotkeyParseError("Unknown key in hotkey: {0!r}".format(name))
             return {key}
     if key_name in alias_map:
         return alias_map[key_name]
     if len(key_name) == 1:
         return _char_keycodes(key_name)
-    raise HotkeyParseError(f"Unknown key in hotkey: {name!r}")
+    raise HotkeyParseError("Unknown key in hotkey: {0!r}".format(name))
 
 
-@dataclass(frozen=True)
-class Hotkey:
+class Hotkey(object):
     """A parsed hotkey combination."""
 
-    requirements: Sequence[Set[keyboard.Key | keyboard.KeyCode]]
-    display_parts: Sequence[str]
+    def __init__(self, requirements, display_parts):
+        self.requirements = tuple(requirements)
+        self.display_parts = tuple(display_parts)
 
     @classmethod
-    def parse(cls, combo: str) -> "Hotkey":
+    def parse(cls, combo):
         parts = [part.strip() for part in combo.split("+") if part.strip()]
         if not parts:
             raise HotkeyParseError("Hotkey cannot be empty")
 
-        requirements: list[Set[keyboard.Key | keyboard.KeyCode]] = []
-        display_parts: list[str] = []
+        requirements = []
+        display_parts = []
         for part in parts:
             keys = _alias_keys(part)
             requirements.append(keys)
@@ -115,23 +112,31 @@ class Hotkey:
 
         return cls(tuple(requirements), tuple(display_parts))
 
-    def matches(self, pressed: Set[keyboard.Key | keyboard.KeyCode]) -> bool:
-        return all(any(option in pressed for option in requirement) for requirement in self.requirements)
+    def matches(self, pressed):
+        for requirement in self.requirements:
+            matched = False
+            for option in requirement:
+                if option in pressed:
+                    matched = True
+                    break
+            if not matched:
+                return False
+        return True
 
-    def describe(self) -> str:
+    def describe(self):
         return " + ".join(self.display_parts)
 
 
-class AutoClicker:
+class AutoClicker(object):
     """Handle starting and stopping a randomized auto-click loop."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         self._mouse = mouse.Controller()
         self._stop_event = threading.Event()
-        self._click_thread: Optional[threading.Thread] = None
+        self._click_thread = None
         self._clicking = False
 
-    def start(self) -> None:
+    def start(self):
         if self._clicking:
             return
 
@@ -140,7 +145,7 @@ class AutoClicker:
         self._click_thread.start()
         self._clicking = True
 
-    def stop(self) -> None:
+    def stop(self):
         if not self._clicking:
             return
 
@@ -151,7 +156,7 @@ class AutoClicker:
 
         self._clicking = False
 
-    def _click_loop(self) -> None:
+    def _click_loop(self):
         while not self._stop_event.is_set():
             self._mouse.click(mouse.Button.left)
             delay = random.uniform(CLICK_INTERVAL_MIN, CLICK_INTERVAL_MAX)
@@ -159,22 +164,22 @@ class AutoClicker:
                 break
 
     @property
-    def clicking(self) -> bool:
+    def clicking(self):
         return self._clicking
 
 
-class HotkeyListener:
+class HotkeyListener(object):
     """Listen for hotkey combinations to toggle or exit the clicker."""
 
-    def __init__(self, clicker: AutoClicker, toggle: Hotkey, exit_hotkey: Hotkey | None) -> None:
+    def __init__(self, clicker, toggle, exit_hotkey):
         self._clicker = clicker
         self._toggle = toggle
         self._exit = exit_hotkey
-        self._pressed_keys: Set[keyboard.Key | keyboard.KeyCode] = set()
+        self._pressed_keys = set()
         self._toggle_active = False
         self._exit_active = False
 
-    def on_press(self, key: keyboard.Key | keyboard.KeyCode) -> bool | None:
+    def on_press(self, key):
         self._pressed_keys.add(key)
 
         if self._exit and self._exit.matches(self._pressed_keys):
@@ -189,15 +194,21 @@ class HotkeyListener:
             if self._clicker.clicking:
                 self._clicker.stop()
                 print(
-                    f"Auto-clicking stopped. Press {self._toggle.describe()} to start again."
+                    "Auto-clicking stopped. Press {0} to start again.".format(
+                        self._toggle.describe()
+                    )
                 )
             else:
                 self._clicker.start()
-                print(f"Auto-clicking started. Press {self._toggle.describe()} to stop.")
+                print(
+                    "Auto-clicking started. Press {0} to stop.".format(
+                        self._toggle.describe()
+                    )
+                )
 
         return None
 
-    def on_release(self, key: keyboard.Key | keyboard.KeyCode) -> None:
+    def on_release(self, key):
         self._pressed_keys.discard(key)
         if self._toggle_active and not self._toggle.matches(self._pressed_keys):
             self._toggle_active = False
@@ -205,7 +216,7 @@ class HotkeyListener:
             self._exit_active = False
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser():
     parser = argparse.ArgumentParser(description="Auto clicker with configurable hotkeys")
     parser.add_argument(
         "--toggle",
@@ -220,20 +231,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_required_hotkey(parser: argparse.ArgumentParser, value: str) -> Hotkey:
+def _parse_required_hotkey(parser, value):
     try:
         return Hotkey.parse(value)
     except HotkeyParseError as exc:
         parser.error(str(exc))
 
 
-def _parse_optional_hotkey(parser: argparse.ArgumentParser, value: str) -> Hotkey | None:
+def _parse_optional_hotkey(parser, value):
     if value.lower() == "none":
         return None
     return _parse_required_hotkey(parser, value)
 
 
-def main() -> None:
+def main():
     parser = build_parser()
     args = parser.parse_args()
 
@@ -243,9 +254,9 @@ def main() -> None:
     clicker = AutoClicker()
     listener = HotkeyListener(clicker, toggle_hotkey, exit_hotkey)
 
-    print(f"Press {toggle_hotkey.describe()} to start or stop auto-clicking.")
+    print("Press {0} to start or stop auto-clicking.".format(toggle_hotkey.describe()))
     if exit_hotkey:
-        print(f"Press {exit_hotkey.describe()} to exit the program.")
+        print("Press {0} to exit the program.".format(exit_hotkey.describe()))
     print("Press CTRL+C in the terminal to exit as well.")
 
     with keyboard.Listener(

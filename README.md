@@ -6,8 +6,10 @@ in browsers such as Opera.
 
 ## Setup
 
-1. Create a virtual environment (optional but recommended).
-2. Install dependencies:
+1. Use Python 3.2 (the code now avoids modern syntax so it can run on that runtime).
+2. Create a virtual environment (optional but recommended).
+3. Install dependencies (an older `pynput` version compatible with Python 3.2 will be
+   selected automatically):
 
    ```bash
    pip install -r requirements.txt
